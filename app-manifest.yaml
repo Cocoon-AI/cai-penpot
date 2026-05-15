@@ -27,7 +27,21 @@ auth:
 backend:
   health_path: /api/health-check
 
-# Observability (ADR D10).
+# Container posture (ADR 0004 D11 Tier 3 exception). Inherited from
+# the base fork; the tenant fork accepts the exception unchanged.
+container_posture:
+  exception: true
+  runtime_base: ubuntu:24.04
+  rationale: |
+    Penpot's backend startup is `/bin/bash run.sh` — JVM-flag assembly
+    + env-var preprocessing. The runtime image apt-installs imagemagick,
+    libwebp, libpoppler, woff-tools, and python3 for asset rendering
+    (SVG → image, PDF export, font conversion). Force-fitting distroless
+    would require replacing run.sh with a JVM main class and vendoring
+    these libs into a distroless-Ubuntu derivative — fork delta we
+    cannot maintain across upstream rebases. See cai-portal ADR 0004 D11.
+
+# Observability (ADR D10 — cai-otel-collector sidecar).
 #
 # service_name is `cai-penpot` — becomes the Loki `job` label and the
 # trace `service.name` resource attribute. Same naming convention
