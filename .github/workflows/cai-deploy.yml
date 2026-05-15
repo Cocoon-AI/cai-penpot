@@ -66,21 +66,19 @@ jobs:
       - name: Build upstream Penpot backend image
         run: |
           set -euo pipefail
-          # Upstream's bundle-build step. Adjust to whatever upstream
-          # publishes as the canonical "prepare bundle-backend/" command.
-          # As of penpot 2.15.x this is the bundle script under backend/.
-          # TODO: confirm exact command against upstream's CI before
-          # this CI is exercised live.
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            penpotapp/devenv:latest \
-            bash -lc "yarn install --frozen-lockfile && cd backend && ./scripts/build && cd .. && ./bin/build-backend-bundle.sh" \
-            || echo "TODO: replace with upstream's actual bundle build command"
-          docker build \
-            -f docker/images/Dockerfile.backend \
-            -t cai-penpot-upstream:build \
-            .
+          # Penpot's own pipeline (per manage.sh in this repo —
+          # inherited from base fork Cocoon-AI/foreign-penpot):
+          #   build-backend-bundle       — runs Clojure build inside
+          #     penpotapp/devenv:latest, produces ./bundles/backend/
+          #   build-backend-docker-image — rsync to
+          #     docker/images/bundle-backend/, then docker build of
+          #     docker/images/Dockerfile.backend; tags as
+          #     penpotapp/backend:<branch> + penpotapp/backend:latest.
+          # The produced penpotapp/backend:latest is local-only —
+          # what we pass as ARG BASE to Dockerfile.cai-overlay.
+          export CURRENT_USER_ID="$(id -u)"
+          ./manage.sh build-backend-bundle
+          ./manage.sh build-backend-docker-image
 
       # Stage 2: our Tier-3 overlay (OTel javaagent + package-snapshot
       # capture). Tiny diff on top of upstream's image.
@@ -90,7 +88,7 @@ jobs:
           context: .
           file: Dockerfile.cai-overlay
           build-args: |
-            BASE=cai-penpot-upstream:build
+            BASE=penpotapp/backend:latest
           load: true
           tags: scan-target:latest
 
@@ -165,7 +163,7 @@ jobs:
           context: .
           file: Dockerfile.cai-overlay
           build-args: |
-            BASE=cai-penpot-upstream:build
+            BASE=penpotapp/backend:latest
           push: true
           tags: |
             ghcr.io/cocoon-ai/cai-penpot:${{ steps.tag.outputs.tag }}
