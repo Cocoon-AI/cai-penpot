@@ -95,7 +95,7 @@ jobs:
           tags: scan-target:latest
 
       - name: Trivy CRITICAL scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.30.0
         with:
           image-ref: scan-target:latest
           severity: CRITICAL
