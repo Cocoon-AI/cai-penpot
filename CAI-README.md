@@ -1,7 +1,7 @@
 # Cocoon AI tenant fork — cai-penpot
 
 The **deploy target** for Penpot on Cocoon AI's platform. Tenant fork
-of [`Cocoon-AI/penpot`](https://github.com/Cocoon-AI/penpot) (the
+of [`Cocoon-AI/foreign-penpot`](https://github.com/Cocoon-AI/foreign-penpot) (the
 base fork), per [`cai-portal` ADR 0004](https://github.com/Cocoon-AI/cai-portal/blob/main/docs/adrs/0004-foreign-app-pattern.md)
 Phase 5b + D15.
 
@@ -10,7 +10,7 @@ Phase 5b + D15.
 
 ## What this repo is
 
-- A real git fork of `Cocoon-AI/penpot` (which is itself a fork of
+- A real git fork of `Cocoon-AI/foreign-penpot` (which is itself a fork of
   `penpot/penpot`).
 - Carries the same platform-integration overlay as the base fork +
   tenant-specific manifest values (`deployment.account: cai-apps`,
@@ -22,12 +22,12 @@ Phase 5b + D15.
 ```
 penpot/penpot (upstream)
   ↓ rebased on cadence
-Cocoon-AI/penpot (base fork)
+Cocoon-AI/foreign-penpot (base fork)
   ↓ rebased on cadence — this fork's parent
 Cocoon-AI/cai-penpot (this repo — Cocoon's tenant fork; the deploy target)
 ```
 
-`cai-upstream-track.yml` in this repo merges from `Cocoon-AI/penpot`
+`cai-upstream-track.yml` in this repo merges from `Cocoon-AI/foreign-penpot`
 (the base), not from upstream directly. That keeps the rebase work
 concentrated in the base fork.
 

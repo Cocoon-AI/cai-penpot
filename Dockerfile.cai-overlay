@@ -12,7 +12,7 @@
 #      (`docker/images/build.sh backend --local`), producing
 #      `penpotapp/backend:<tag>` locally.
 #   2. Build THIS Dockerfile against that local image as the BASE
-#      arg, producing `ghcr.io/cocoon-ai/penpot:<sha>`.
+#      arg, producing `ghcr.io/cocoon-ai/foreign-penpot:<sha>`.
 #
 # This means:
 # - We do NOT pull `docker.io/penpotapp/backend` at runtime — the local

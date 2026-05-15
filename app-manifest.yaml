@@ -2,7 +2,7 @@
 #
 # Per cai-portal ADR 0004 D14 Phase 5b + D15. **This is the tenant
 # fork — the deploy target.** Descends from the base fork
-# Cocoon-AI/penpot; tracks the base fork (not upstream directly).
+# Cocoon-AI/foreign-penpot; tracks the base fork (not upstream directly).
 
 schema_version: 2
 kind: foreign
@@ -11,9 +11,9 @@ name: cai-penpot
 # Fork lineage (ADR 0004 D15). Tenant fork: parent_repo = the base
 # fork. source_repo also names the base fork (the lineage origin).
 upstream:
-  parent_repo: Cocoon-AI/penpot
+  parent_repo: Cocoon-AI/foreign-penpot
   tracking_ref: 2.15.3
-  source_repo: Cocoon-AI/penpot
+  source_repo: Cocoon-AI/foreign-penpot
 
 # Auth (ADR D4 / D5 / D13).
 auth:
