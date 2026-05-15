@@ -9,3 +9,40 @@
 #
 # Tenant forks inherit this baseline; tenant-specific exceptions can
 # layer on top (commits on tenant-fork main, not rebased here).
+
+# ---------------------------------------------------------------------
+# Frontend image (nginxinc/nginx-unprivileged:1.30.0) transitive libs.
+# These CVEs are in libraries that the frontend's nginx never invokes:
+# the frontend serves static SPA files and proxies HTTP/WebSocket
+# requests over plain TCP to the backend container — no DTLS handshake,
+# no SSH client. Added 2026-05-15.
+# ---------------------------------------------------------------------
+
+# Package: libgnutls30t64 3.8.9-3+deb13u2 (Debian 13 trixie)
+# Date: 2026-05-15
+# Why unexploitable: nginx in the frontend image performs no DTLS
+#   negotiation. TLS termination is upstream at the ALB; nginx-to-backend
+#   is plaintext HTTP on the docker compose network. gnutls is pulled
+#   in transitively but never instantiated for a DTLS session.
+# Upstream tracking: https://security-tracker.debian.org/tracker/CVE-2026-33845
+CVE-2026-33845
+
+# Package: libgnutls30t64 3.8.9-3+deb13u2
+# Date: 2026-05-15
+# Why unexploitable: GnuTLS NUL-byte auth-bypass requires the frontend
+#   to invoke GnuTLS for certificate-based auth, which it does not (see
+#   above; TLS terminates at the ALB). The bypass path is not reachable
+#   in the nginx static-serve / HTTP-proxy code path.
+# Upstream tracking: https://security-tracker.debian.org/tracker/CVE-2026-42010
+CVE-2026-42010
+
+# Package: libssh2-1t64 1.11.1-1
+# Date: 2026-05-15
+# Why unexploitable: the frontend image runs only nginx, which is
+#   compiled without ssh-related modules and never spawns an SSH client.
+#   libssh2 is installed as a transitive dep of unrelated tooling that
+#   isn't invoked at runtime. Integer overflow path requires calling
+#   into libssh2's username/password parsing — no caller in the runtime
+#   image.
+# Upstream tracking: https://security-tracker.debian.org/tracker/CVE-2026-7598
+CVE-2026-7598
