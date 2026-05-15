@@ -156,7 +156,7 @@ jobs:
           path: |
             /tmp/cai-build-artifacts/
 
-      - name: Build + push to GHCR
+      - name: Build + push backend to GHCR
         if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
         uses: docker/build-push-action@v6
         with:
@@ -168,6 +168,51 @@ jobs:
           tags: |
             ghcr.io/cocoon-ai/cai-penpot:${{ steps.tag.outputs.tag }}
             ghcr.io/cocoon-ai/cai-penpot:latest
+
+      # ----------------------------------------------------------------
+      # Frontend build (Tier 2, per ADR 0004 D11 tiered policy).
+      #
+      # The frontend is upstream Penpot's nginx-unprivileged image
+      # serving the SPA + proxying /api/* to the backend. It needs no
+      # JVM, no native libs, no shell at runtime — so it does NOT
+      # need the Tier-3 overlay (no OTel javaagent, no package-snapshot
+      # gate). Trivy CRITICAL + non-root assertion still apply.
+      # ----------------------------------------------------------------
+      - name: Build upstream Penpot frontend image
+        run: |
+          set -euo pipefail
+          export CURRENT_USER_ID="$(id -u)"
+          ./manage.sh build-frontend-bundle
+          ./manage.sh build-frontend-docker-image
+
+      - name: Re-tag frontend for scan + push
+        run: docker tag penpotapp/frontend:latest scan-frontend:latest
+
+      - name: Trivy CRITICAL scan (frontend)
+        run: |
+          trivy image \
+            --severity CRITICAL \
+            --exit-code 1 \
+            --ignorefile .trivyignore \
+            scan-frontend:latest
+
+      - name: Non-root assertion (frontend)
+        run: |
+          set -euo pipefail
+          user=$(docker inspect --format='{{.Config.User}}' scan-frontend:latest)
+          if [ -z "$user" ] || [ "$user" = "root" ] || [ "$user" = "0" ] || [ "$user" = "0:0" ]; then
+            echo "ERROR: frontend image's USER is '$user' (must be non-root)"
+            exit 1
+          fi
+          echo "OK: frontend image runs as non-root ($user)"
+
+      - name: Push frontend to GHCR
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+        run: |
+          docker tag penpotapp/frontend:latest ghcr.io/cocoon-ai/cai-penpot-frontend:${{ steps.tag.outputs.tag }}
+          docker tag penpotapp/frontend:latest ghcr.io/cocoon-ai/cai-penpot-frontend:latest
+          docker push ghcr.io/cocoon-ai/cai-penpot-frontend:${{ steps.tag.outputs.tag }}
+          docker push ghcr.io/cocoon-ai/cai-penpot-frontend:latest
 
       # Per cai-portal ADR 0004 D14a (revised): foreign apps run on
       # EC2 + docker-compose, not ECS Fargate. "Deploy" means
