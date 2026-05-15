@@ -47,13 +47,19 @@ RUN chmod 0444 /opt/otel/javaagent.jar
 # control) compares this against the committed package-snapshot.txt
 # at build time; mismatches fail the build unless the snapshot is
 # updated in the same PR.
-# Note: dollar signs doubled ($$Package, $$Version) so Docker
-# doesn't try to expand them as build ARGs (which would be empty and
-# silently produce an empty snapshot — a real bug we hit during
-# initial Penpot CI bring-up). Per Docker docs, $$ is the escape
-# in shell-form RUN.
-RUN dpkg-query -W -f='$${Package} $${Version}\n' | LC_ALL=C sort > /opt/cai/package-snapshot.txt \
-    && chmod 0444 /opt/cai/package-snapshot.txt
+# Two real bugs surfaced here during CI bring-up:
+#  1. Docker expanded ${Package} as an ARG (empty), silently making
+#     dpkg-query's format empty. Even \${} didn't escape reliably.
+#  2. The actual `\n` in the dpkg-query format gets eaten by Docker's
+#     shell-form RUN argv parsing in subtle ways.
+# Fix both by invoking via a heredoc'd inline script — Docker doesn't
+# touch the script body's contents.
+RUN <<'EOF' bash
+set -euo pipefail
+dpkg-query -W -f='${Package} ${Version}\n' | LC_ALL=C sort > /opt/cai/package-snapshot.txt
+wc -l /opt/cai/package-snapshot.txt
+chmod 0444 /opt/cai/package-snapshot.txt
+EOF
 
 # Restore upstream's user.
 USER penpot:penpot
