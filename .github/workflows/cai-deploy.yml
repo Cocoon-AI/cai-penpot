@@ -85,5 +85,27 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/cocoon-ai/penpot:${{ steps.tag.outputs.tag }}
-            ghcr.io/cocoon-ai/penpot:latest
+            ghcr.io/cocoon-ai/cai-penpot:${{ steps.tag.outputs.tag }}
+            ghcr.io/cocoon-ai/cai-penpot:latest
+
+      # TODO(0004-phase-5b-deploy): once Terraform/ provisions the
+      # foreign-app stack in cai-apps, append the ECS Fargate roll
+      # steps from the template's deploy.yml.jinja. Pattern:
+      #
+      #   - name: Configure AWS credentials (cai-apps cai-gha-deploy)
+      #     uses: aws-actions/configure-aws-credentials@v4
+      #     with:
+      #       role-to-assume: arn:aws:iam::221237748082:role/cai-gha-deploy
+      #       aws-region: us-west-2
+      #
+      #   - name: Roll ECS Fargate service
+      #     run: |
+      #       aws ecs update-service \
+      #         --cluster cai-foreign-apps-live \
+      #         --service cai-cai-penpot \
+      #         --force-new-deployment \
+      #         --region us-west-2
+      #       aws ecs wait services-stable ...
+      #
+      # Held until the Terraform composite module is extracted into
+      # cai-infra and the cluster/service exist.

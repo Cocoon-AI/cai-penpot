@@ -1,72 +1,82 @@
-# Cocoon AI base fork of penpot/penpot
+# Cocoon AI tenant fork — cai-penpot
 
-This is the **base fork** of [penpot/penpot](https://github.com/penpot/penpot)
-per [`cai-portal` ADR 0004](https://github.com/Cocoon-AI/cai-portal/blob/main/docs/adrs/0004-foreign-app-pattern.md)
-Phase 5a + D15.
+The **deploy target** for Penpot on Cocoon AI's platform. Tenant fork
+of [`Cocoon-AI/penpot`](https://github.com/Cocoon-AI/penpot) (the
+base fork), per [`cai-portal` ADR 0004](https://github.com/Cocoon-AI/cai-portal/blob/main/docs/adrs/0004-foreign-app-pattern.md)
+Phase 5b + D15.
 
-> See [`README.md`](./README.md) for the upstream Penpot project.
-> This file documents the **Cocoon AI overlay** only.
+> See [`README.md`](./README.md) for upstream Penpot. This file
+> documents the **Cocoon AI overlay** only.
 
 ## What this repo is
 
-- A real git fork of `penpot/penpot`, tracked at the ref pinned in
-  [`app-manifest.yaml`](./app-manifest.yaml) (`upstream.tracking_ref`).
-- Carries **only platform integration** on top of upstream:
-  - [`Dockerfile`](./Dockerfile) per ADR 0003 (distroless `:nonroot`,
-    multi-stage, OTel javaagent wiring).
-  - [`app-manifest.yaml`](./app-manifest.yaml) — `kind: foreign`,
-    schema_version 2.
-  - [`.github/workflows/cai-deploy.yml`](./.github/workflows/cai-deploy.yml)
-    + [`.github/workflows/cai-upstream-track.yml`](./.github/workflows/cai-upstream-track.yml).
-  - [`.trivyignore`](./.trivyignore) (allowlist-by-exception baseline).
-  - [`BACKUP.md`](./BACKUP.md).
-- **No Cocoon-specific business logic.** Tenant forks
-  (`Cocoon-AI/cai-penpot`, future `Cocoon-AI/<tenant>-penpot`) carry
-  that.
-- **Not directly deployed.** Tenant forks are the deploy targets.
-
-## Branches
-
-- `develop` — upstream's default; tracks `penpot/penpot:develop`.
-- `main` — Cocoon AI base-fork overlay. Carries the platform-
-  integration commits.
-
-`cai-upstream-track.yml` merges upstream tags into this `main` and
-opens a PR (clean or with conflicts).
+- A real git fork of `Cocoon-AI/penpot` (which is itself a fork of
+  `penpot/penpot`).
+- Carries the same platform-integration overlay as the base fork +
+  tenant-specific manifest values (`deployment.account: cai-apps`,
+  `observability.service_name: cai-penpot`, etc.).
+- **Deploys to `cai-apps`** on ECS Fargate per ADR D14a.
 
 ## Lineage
 
 ```
 penpot/penpot (upstream)
-  ↓ rebased on cadence via cai-upstream-track.yml
-Cocoon-AI/penpot (this repo — base fork)
-  ↓ rebased on cadence via cai-upstream-track.yml in the tenant fork
-Cocoon-AI/cai-penpot (Cocoon tenant fork — the deploy target)
+  ↓ rebased on cadence
+Cocoon-AI/penpot (base fork)
+  ↓ rebased on cadence — this fork's parent
+Cocoon-AI/cai-penpot (this repo — Cocoon's tenant fork; the deploy target)
 ```
 
-External tenant forks (future) would sit alongside `cai-penpot`,
-each as their own fork of this base.
+`cai-upstream-track.yml` in this repo merges from `Cocoon-AI/penpot`
+(the base), not from upstream directly. That keeps the rebase work
+concentrated in the base fork.
 
 ## Daily ops
 
-This repo isn't directly deployed. Operations happen on the tenant
-forks. See `cai-portal/docs/runbooks/foreign-app-deploy.md`.
-
-For maintainers of this base fork:
-
 | Task | Command |
 |---|---|
-| Rebase on upstream | `cai foreign upgrade` |
-| Build CI image (verify Dockerfile still works) | push to `main` |
+| Deploy | `cai foreign deploy <tag>` |
+| Tail logs (Loki via Grafana primary; CloudWatch fallback) | `cai foreign logs -f` |
+| Status | `cai foreign status --json` |
+| Sync from base fork | `cai foreign upgrade` |
 
-## TODOs visible in this scaffold
+See `cai-portal/docs/runbooks/foreign-app-deploy.md`.
 
-The Dockerfile + Terraform carry `TODO(0004-phase-5a)` markers for
-the bits that need real values:
-- Penpot's backend build command (depends on upstream's structure;
-  validates against `upstream.tracking_ref`).
-- The OTel javaagent version + COPY path.
-- The Terraform module path + remote-state backend config.
+## SSO
 
-These are gated by Phase 5b actually deploying Penpot — when that
-work happens, the TODOs get resolved and CI is exercised end-to-end.
+Native OIDC against the `cai-portal` Keycloak realm. The whole
+hostname `penpot.cocoon-ai.com` is carved out of ALB OIDC
+(`auth.alb_oidc: false`) so Penpot does its own OIDC without
+double-prompting.
+
+Keycloak groups `penpot-{admin,member,viewer}` map to Penpot's
+`admin/editor/viewer` roles via the `groups` claim mapper per ADR D5.
+
+## Observability
+
+`{job="cai-penpot"}` in Grafana Loki returns this app's logs alongside
+`{job="cai-portal"}` etc. — same naming convention native apps use.
+JVM auto-instrumentation agent (ADR D10 Pattern 2) emits traces via
+the `cai-otel-collector` sidecar.
+
+## Deploy state
+
+**Not deployed yet.** Phase 5b's terraform-apply gate is held until
+the base fork's Dockerfile TODOs are resolved + the foreign-app
+composite Terraform module is extracted into `cai-infra` (currently
+the Terraform/main.tf references a not-yet-extracted path). The
+`cai foreign deploy` workflow path is wired and CI-testable on PRs.
+
+The path to first deploy:
+
+1. Resolve Dockerfile TODOs in this fork (Penpot backend build
+   command + OTel javaagent version pin).
+2. Extract the foreign-app Terraform composite module into
+   `cai-infra/infra/terraform/modules/foreign-app/`.
+3. `terraform apply` from this repo's `Terraform/` against
+   `cai-apps`.
+4. Provision Keycloak `penpot` client via `just kcadm`.
+5. First sign-in E2E.
+
+These are captured against acceptance criteria #1, #2, #3 in
+`cai-portal/docs/specs/0004-foreign-app-pattern.md`.
