@@ -94,14 +94,25 @@ jobs:
           load: true
           tags: scan-target:latest
 
+      - name: Install Trivy CLI
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq wget apt-transport-https gnupg lsb-release
+          wget -qO- https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq trivy
+
       - name: Trivy CRITICAL scan
-        uses: aquasecurity/trivy-action@v0.28.0
-        with:
-          image-ref: scan-target:latest
-          severity: CRITICAL
-          exit-code: '1'
-          ignore-unfixed: false
-          trivyignores: .trivyignore
+        run: |
+          trivy image \
+            --severity CRITICAL \
+            --exit-code 1 \
+            --ignorefile .trivyignore \
+            scan-target:latest
 
       # D11 Tier 3: non-root runtime assertion. Distroless's strict
       # "no /bin/sh at runtime" check is SKIPPED for Tier 3
