@@ -47,11 +47,12 @@ RUN chmod 0444 /opt/otel/javaagent.jar
 # control) compares this against the committed package-snapshot.txt
 # at build time; mismatches fail the build unless the snapshot is
 # updated in the same PR.
-# Note: dollar signs escaped (\${Package}, \${Version}) so Docker
+# Note: dollar signs doubled ($$Package, $$Version) so Docker
 # doesn't try to expand them as build ARGs (which would be empty and
 # silently produce an empty snapshot — a real bug we hit during
-# initial Penpot CI bring-up).
-RUN dpkg-query -W -f='\${Package} \${Version}\n' | LC_ALL=C sort > /opt/cai/package-snapshot.txt \
+# initial Penpot CI bring-up). Per Docker docs, $$ is the escape
+# in shell-form RUN.
+RUN dpkg-query -W -f='$${Package} $${Version}\n' | LC_ALL=C sort > /opt/cai/package-snapshot.txt \
     && chmod 0444 /opt/cai/package-snapshot.txt
 
 # Restore upstream's user.
