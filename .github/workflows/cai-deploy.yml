@@ -169,24 +169,50 @@ jobs:
             ghcr.io/cocoon-ai/cai-penpot:${{ steps.tag.outputs.tag }}
             ghcr.io/cocoon-ai/cai-penpot:latest
 
-      # TODO(0004-phase-5b-deploy): once Terraform/ provisions the
-      # foreign-app stack in cai-apps, append the ECS Fargate roll
-      # steps from the template's deploy.yml.jinja. Pattern:
-      #
-      #   - name: Configure AWS credentials (cai-apps cai-gha-deploy)
-      #     uses: aws-actions/configure-aws-credentials@v4
-      #     with:
-      #       role-to-assume: arn:aws:iam::221237748082:role/cai-gha-deploy
-      #       aws-region: us-west-2
-      #
-      #   - name: Roll ECS Fargate service
-      #     run: |
-      #       aws ecs update-service \
-      #         --cluster cai-foreign-apps-live \
-      #         --service cai-cai-penpot \
-      #         --force-new-deployment \
-      #         --region us-west-2
-      #       aws ecs wait services-stable ...
-      #
-      # Held until the Terraform composite module is extracted into
-      # cai-infra and the cluster/service exist.
+      # Per cai-portal ADR 0004 D14a (revised): foreign apps run on
+      # EC2 + docker-compose, not ECS Fargate. "Deploy" means
+      # SSM-trigger the app host to `docker compose pull` + `up -d`
+      # the new image tag. The host is tagged so we can target it
+      # by name without hardcoding instance IDs.
+      - name: Configure AWS credentials (cai-apps cai-gha-deploy)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::221237748082:role/cai-gha-deploy
+          aws-region: us-west-2
+
+      - name: Roll cai-penpot via SSM Run Command
+        run: |
+          set -euo pipefail
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=cai-foreign-cai-penpot-app" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].InstanceId' \
+            --output text)
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
+            echo "ERROR: no running cai-foreign-cai-penpot-app instance found"
+            exit 1
+          fi
+          echo "Rolling host: $INSTANCE_ID"
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "cai foreign deploy cai-penpot" \
+            --parameters 'commands=["cd /etc/cai-foreign-cai-penpot && docker compose pull && docker compose up -d && docker image prune -f"]' \
+            --query 'Command.CommandId' --output text)
+          # Wait up to 5 min for the SSM command to finish.
+          for i in $(seq 1 60); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            if [ "$STATUS" = "Success" ]; then
+              echo "Roll succeeded after ${i}x5s polls"
+              exit 0
+            fi
+            if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
+              echo "Roll failed (status=$STATUS)"
+              aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query StandardErrorContent --output text
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "Roll did not complete within 5 min"
+          exit 1
