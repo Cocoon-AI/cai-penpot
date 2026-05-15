@@ -88,24 +88,30 @@ jobs:
           title="Rebase on upstream ${{ steps.refs.outputs.latest }}"
           notes_url="https://github.com/${{ steps.refs.outputs.parent }}/releases/tag/${{ steps.refs.outputs.latest }}"
           if [ "${{ steps.merge.outputs.conflict }}" = "true" ]; then
+            cat > /tmp/pr-body.md <<EOF
+          Conflicts during merge of \`${{ steps.refs.outputs.latest }}\` into our fork. See \`CONFLICTS.md\` in this branch.
+
+          Upstream release notes: $notes_url
+
+          Resolve locally, remove the \`do-not-merge\` label, and merge. See cai-portal/docs/runbooks/foreign-app-upgrade.md.
+          EOF
             gh pr create \
               --base main \
               --head "${{ steps.merge.outputs.branch }}" \
               --title "$title (CONFLICTS)" \
-              --body "Conflicts during merge of \`${{ steps.refs.outputs.latest }}\` into our fork. See \`CONFLICTS.md\` in this branch.
-
-Upstream release notes: $notes_url
-
-Resolve locally, remove the \`do-not-merge\` label, and merge. See cai-portal/docs/runbooks/foreign-app-upgrade.md." \
+              --body-file /tmp/pr-body.md \
               --label do-not-merge
           else
+            cat > /tmp/pr-body.md <<EOF
+          Clean merge of upstream \`${{ steps.refs.outputs.latest }}\`.
+
+          Upstream release notes: $notes_url
+
+          CI must pass before merge.
+          EOF
             gh pr create \
               --base main \
               --head "${{ steps.merge.outputs.branch }}" \
               --title "$title" \
-              --body "Clean merge of upstream \`${{ steps.refs.outputs.latest }}\`.
-
-Upstream release notes: $notes_url
-
-CI must pass before merge."
+              --body-file /tmp/pr-body.md
           fi
